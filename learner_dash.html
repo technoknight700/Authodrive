@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Learner Driver Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet" />
+    <style>
+        :root { --main-bg-color: #1976d2; }
+        body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: url("https://media.istockphoto.com/id/1197889687/photo/traffic-lights-and-wet-road-at-night.jpg?s=612x612&w=0&k=20&c=LkMFqkOWmw3JeO4arD4R2SX_hPDpF5FuMqVKHrfIXqI=") no-repeat center center fixed; background-size: cover; color: #fff; }
+        h2, h3 { text-align: center; color: #ffffff; margin: 20px 0; font-weight: 600; text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.6); }
+        
+        /* MODIFIED: Layout to support form and table side-by-side */
+        .main-container { padding: 20px; display: flex; gap: 30px; align-items: flex-start; }
+        
+        /* ADDED: Styles for the new form */
+        .form-container { width: 280px; padding: 20px; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(5px); border-radius: 10px; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5); color: #e3f2fd; flex-shrink: 0; }
+        form { display: flex; flex-direction: column; gap: 15px; }
+        label { font-weight: 500; font-size: 14px; color: #ffffff; }
+        input[type="text"], input[type="file"] { width: 100%; padding: 10px; font-size: 14px; border: 1px solid #555; border-radius: 5px; background: rgba(255, 255, 255, 0.9); color: #000; box-sizing: border-box; }
+        .status-message { margin-top: 10px; font-size: 14px; color: #bbdefb; min-height: 20px; }
+        
+        .table-container { flex-grow: 1; }
+        table { border-collapse: collapse; width: 100%; background: rgba(0, 0, 0, 0.65); backdrop-filter: blur(5px); border-radius: 10px; overflow: hidden; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5); font-size: 14px; color: #e3f2fd; }
+        th, td { padding: 12px 15px; text-align: left; }
+        th { background-color: rgba(25, 118, 210, 0.9); color: #fff; }
+        tr:hover { background-color: rgba(25, 118, 210, 0.3); }
+        button, .action-btn { padding: 10px 15px; background-color: var(--main-bg-color); color: #fff; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 8px; justify-content: center; }
+        button:hover, .action-btn:hover { background-color: #0d47a1; transform: translateY(-2px); }
+        .status-enrolled { color: #66bb6a; font-weight: bold; display: flex; align-items: center; gap: 5px; }
+        
+        /* Styles for Admin Panel */
+        .admin-panel { position: fixed; top: 15px; right: 20px; z-index: 200; }
+        .admin-dropdown { display: none; position: absolute; right: 0; margin-top: 10px; background: #263238; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4); flex-direction: column; padding-top: 25px; }
+        .admin-dropdown button { background: none; border: none; color: #fff; text-align: left; padding: 10px 15px; width: 180px; cursor: pointer; }
+        .admin-dropdown button:hover { background: #1976d2; }
+        .close-btn-tr { position: absolute; top: 10px; right: 15px; color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="admin-panel">
+      <div class="admin-profile" id="adminProfile">
+        <i class="bi bi-person-circle" style="font-size:28px; cursor:pointer;"></i>
+      </div>
+      <div class="admin-dropdown" id="adminDropdown">
+        <span class="close-btn-tr" id="closeAdminDropdown">×</span>
+        <button onclick="window.location.href='dashboard.html'"><i class="bi bi-speedometer2"></i> Main Dashboard</button>
+        <button onclick="window.location.href='emergency_log.html'"><i class="bi bi-exclamation-triangle"></i> Emergency Log</button>
+      </div>
+    </div>
+
+    <div class="main-container">
+        <div class="form-container">
+            <h2>Add New Learner</h2>
+            <form id="uploadForm">
+                <div>
+                    <label for="driverName">Learner Name (if not on license)</label>
+                    <input type="text" id="driverName" required>
+                </div>
+                <div>
+                    <label for="file">Upload Learner's License</label>
+                    <input type="file" id="file" accept="image/*" required>
+                </div>
+                <button type="submit"><i class="bi bi-cloud-upload"></i> Upload & Process</button>
+                <div id="statusMessage" class="status-message"></div>
+            </form>
+        </div>
+
+        <div class="table-container">
+            <h3>Active Learners</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>License No</th>
+                        <th>Fingerprint</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="learner-table-body">
+                    <tr><td colspan="4" style="text-align:center;">Loading learners...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, query, where, doc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "authodrive.firebaseapp.com",
+            projectId: "authodrive",
+            storageBucket: "authodrive.appspot.com",
+            messagingSenderId: "957416208887",
+            appId: "1:957416208887:web:e436118e5c531458b2d6f2"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const backendUrl = "http://127.0.0.1:5000";
+
+        // --- Table Rendering Logic ---
+        const learnerTableBody = document.getElementById("learner-table-body");
+        const learnersQuery = query(collection(db, "drivers"), where("driverType", "==", "Learner"), where("Status", "==", "Active"));
+        onSnapshot(learnersQuery, (snapshot) => {
+            if (snapshot.empty) {
+                learnerTableBody.innerHTML = `<tr><td colspan="4" style="text-align:center;">No active learners found.</td></tr>`;
+                return;
+            }
+            let allRowsHTML = '';
+            snapshot.forEach(doc => {
+                const learner = { id: doc.id, ...doc.data() };
+                let fingerprintCellHTML = learner.fingerprintEnrolled ? `<span class="status-enrolled"><i class="bi bi-check-circle-fill"></i> Enrolled</span>` : `<button class="action-btn fingerprint-btn" data-id="${learner.id}"><i class="bi bi-fingerprint"></i> Enroll</button>`;
+                allRowsHTML += `
+                    <tr>
+                        <td>${learner["Name"] || 'N/A'}</td>
+                        <td>${learner["License No"] || 'N/A'}</td>
+                        <td>${fingerprintCellHTML}</td>
+                        <td><button title="Discard Learner" class="action-btn remove-btn" data-id="${learner.id}" style="background-color:#b71c1c;"><i class="bi bi-trash"></i></button></td>
+                    </tr>`;
+            });
+            learnerTableBody.innerHTML = allRowsHTML;
+        });
+        
+        // --- Table Click Actions ---
+        learnerTableBody.addEventListener("click", async (e) => {
+            const target = e.target.closest('button');
+            if (!target) return;
+            const learnerId = target.dataset.id;
+            if (!learnerId) return;
+            const learnerDocRef = doc(db, "drivers", learnerId);
+            if (target.classList.contains("fingerprint-btn")) {
+                alert("Fingerprint scanning requires a dedicated desktop application.");
+            } else if (target.classList.contains("remove-btn")) {
+                if (confirm("Are you sure you want to discard this learner?")) {
+                    await updateDoc(learnerDocRef, { Status: "Discarded", "Removed Timestamp": serverTimestamp() });
+                }
+            }
+        });
+        
+        // --- ADDED: Form Submission Logic ---
+        const uploadForm = document.getElementById("uploadForm");
+        const statusMessage = document.getElementById("statusMessage");
+        uploadForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const driverName = document.getElementById("driverName").value.trim();
+            const file = document.getElementById("file").files[0];
+            if (!driverName || !file) {
+                statusMessage.textContent = "Please provide name and file.";
+                return;
+            }
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("driverName", driverName);
+            formData.append("driverType", "Learner"); // Ensures new entries are learners
+            
+            statusMessage.textContent = "Uploading and processing...";
+            try {
+                const response = await fetch(`${backendUrl}/process-license`, { method: "POST", body: formData });
+                const result = await response.json();
+                if (!response.ok) { throw new Error(result.error || `Server error: ${response.status}`); }
+                statusMessage.textContent = `Success! License ${result.licenseNo} processed.`;
+                uploadForm.reset();
+            } catch (err) {
+                statusMessage.textContent = `Error: ${err.message}`;
+                console.error(err);
+            }
+        });
+    </script>
+
+    <script>
+        document.getElementById("adminProfile").onclick = () => { 
+            const dropdown = document.getElementById("adminDropdown");
+            dropdown.style.display = (dropdown.style.display === "flex") ? "none" : "flex"; 
+        };
+        document.getElementById('closeAdminDropdown').onclick = () => { 
+            document.getElementById('adminDropdown').style.display = 'none'; 
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Emergency Log</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet" />
+
+    <style>
+        :root {
+            --main-bg-color: #c62828;
+        }
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: url("https://media.istockphoto.com/id/1197889687/photo/traffic-lights-and-wet-road-at-night.jpg?s=612x612&w=0&k=20&c=LkMFqkOWmw3JeO4arD4R2SX_hPDpF5FuMqVKHrfIXqI=") no-repeat center center fixed;
+            background-size: cover;
+            color: #fff;
+        }
+        h3 {
+            text-align: center;
+            color: #ffffff;
+            margin: 20px 0;
+            font-weight: 600;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+        }
+        .table-container {
+            padding: 20px;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(4px);
+            border-radius: 10px;
+            overflow: hidden;
+            font-size: 14px;
+            color: #e3f2fd;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            vertical-align: middle; 
+        }
+        th {
+            background-color: rgba(183, 28, 28, 0.9);
+            color: #fff;
+        }
+        tr:nth-child(even) {
+            background-color: rgba(255, 255, 255, 0.08);
+        }
+        .captured-image {
+            width: 60px;
+            height: 60px;
+            border-radius: 8px;
+            object-fit: cover;
+            cursor: pointer;
+        }
+        .new-log-highlight {
+            animation: highlight-fade 3s ease-out;
+        }
+        @keyframes highlight-fade {
+            from { background-color: rgba(255, 255, 0, 0.5); }
+            to { background-color: transparent; }
+        }
+    </style>
+</head>
+<body>
+    <audio id="alert-sound" src="https://www.zapsplat.com/wp-content/uploads/2015/sound-effects-zapsplat/zapsplat_multimedia_alert_chime_short_positive_001_86488.mp3" preload="auto"></audio>
+
+    <div class="table-container">
+        <h3>Emergency Override Log</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Facial Capture</th>
+                    <th>Timestamp</th>
+                </tr>
+            </thead>
+            <tbody id="log-table-body">
+                <tr>
+                    <td colspan="2" style="text-align:center;">Loading logs...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+        import { getFirestore, collection, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCx80ZdLLV06ugSQZjIksldAdeBxQsOuMA",
+            authDomain: "authodrive.firebaseapp.com",
+            projectId: "authodrive",
+            storageBucket: "authodrive.firebasestorage.app",
+            messagingSenderId: "957416208887",
+            appId: "1:957416208887:web:e436118e5c531458b2d6f2"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const logTableBody = document.getElementById("log-table-body");
+        const alertSound = document.getElementById("alert-sound");
+        
+        let isInitialLoad = true;
+
+        function formatTimestamp(firebaseTimestamp) {
+            if (!firebaseTimestamp || typeof firebaseTimestamp.toDate !== 'function') {
+                return 'N/A';
+            }
+            const date = firebaseTimestamp.toDate();
+            const options = {
+                year: 'numeric', month: 'short', day: 'numeric',
+                hour: 'numeric', minute: '2-digit', hour12: true
+            };
+            return new Intl.DateTimeFormat('en-US', options).format(date);
+        }
+        
+        function renderTable(docs) {
+            logTableBody.innerHTML = "";
+            docs.forEach(doc => {
+                const log = doc.data();
+                const row = document.createElement("tr");
+                
+                if (log.isNew) {
+                    row.classList.add("new-log-highlight");
+                }
+                
+                const timestamp = formatTimestamp(log.timestamp);
+                const imageUrl = log.imageUrl;
+                
+                const imageHtml = imageUrl 
+                    ? `<img src="${imageUrl}" alt="Captured Image" class="captured-image" onclick="window.open('${imageUrl}', '_blank')">`
+                    : `<span>No Image</span>`;
+
+                row.innerHTML = `
+                    <td>${imageHtml}</td>
+                    <td>${timestamp}</td>
+                `;
+                logTableBody.appendChild(row);
+            });
+        }
+
+        function listenForLogs() {
+            const logsQuery = query(collection(db, "emergency_logs"), orderBy("timestamp", "desc"));
+            
+            onSnapshot(logsQuery, (snapshot) => {
+                if (snapshot.empty) {
+                    logTableBody.innerHTML = `<tr><td colspan="2" style="text-align:center;">No emergency logs found.</td></tr>`;
+                    return;
+                }
+
+                if (isInitialLoad) {
+                    renderTable(snapshot.docs);
+                    isInitialLoad = false;
+                } else {
+                    let hasNewAddition = false;
+                    snapshot.docChanges().forEach((change) => {
+                        if (change.type === "added") {
+                            change.doc.data().isNew = true;
+                            hasNewAddition = true;
+                        }
+                    });
+
+                    if (hasNewAddition) {
+                        alertSound.play();
+                        renderTable(snapshot.docs);
+                    }
+                }
+            });
+        }
+
+        listenForLogs();
+    </script>
+</body>
+</html>

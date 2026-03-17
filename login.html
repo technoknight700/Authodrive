@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Admin Login - Autho Drive</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: url("https://escalent.co/wp-content/uploads/2019/02/Rise-of-the-Smart-Car-The-Shape-Shifting-Motoring-Future-is-Already-Here-770x406.jpg") no-repeat center center fixed;
+            background-size: cover;
+        }
+        .form-box {
+            background: rgba(0, 0, 0, 0.75);
+            border-radius: 1rem;
+            position: relative;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+        }
+        .input-icon {
+            color: #6b7280;
+            font-weight: 600;
+            font-size: 1.1rem;
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        .password-toggle {
+            cursor: pointer;
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6b7280;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Form -->
+    <div class="form-box p-8 w-full max-w-sm text-white">
+        <h1 class="text-3xl font-extrabold text-center mb-4">Autho Drive</h1>
+        <h2 class="text-2xl font-bold text-center mb-6 text-cyan-300">Admin Login</h2>
+        
+        <form id="loginForm" class="space-y-6">
+            <!-- Email -->
+            <div class="relative">
+                <i class="bi bi-envelope input-icon"></i>
+                <input id="email" type="email" required placeholder="Email"
+                       class="w-full px-4 py-2 pl-10 border rounded-md bg-gray-100 text-black focus:outline-none focus:ring-2 focus:ring-cyan-400" />
+            </div>
+            
+            <!-- Password -->
+            <div>
+                <div class="relative">
+                    <i class="bi bi-lock input-icon"></i>
+                    <input id="password" type="password" required placeholder="Password"
+                           class="w-full px-4 py-2 pl-10 pr-10 border rounded-md bg-gray-100 text-black focus:outline-none focus:ring-2 focus:ring-cyan-400"/>
+                    <i id="togglePassword" class="bi bi-eye-slash password-toggle"></i>
+                </div>
+                <div class="text-right mt-2">
+                    <a href="#" id="forgotPasswordLink" class="text-sm text-cyan-300 hover:underline">Forgot Password?</a>
+                </div>
+            </div>
+            
+            <!-- Login Button -->
+            <button type="submit" class="w-full bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 hover:from-cyan-600 hover:via-blue-600 hover:to-indigo-700 shadow-lg text-white font-semibold py-2 rounded-xl transition duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">
+                Login
+            </button>
+        </form>
+
+        <!-- Link to Registration -->
+        <p class="text-center mt-6 text-sm text-gray-300">
+            Don’t have an account? 
+            <a href="signup.html" class="text-pink-400 hover:underline">Sign Up</a>
+        </p>
+    </div>
+
+    <!-- Modal Pop-up for Feedback -->
+    <div id="popupModal" class="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex justify-center items-center hidden z-50 p-4">
+        <div class="bg-gray-800 p-6 rounded-lg shadow-xl text-center text-white w-full max-w-xs border border-gray-700">
+            <div id="popupIcon" class="text-5xl mb-4"></div>
+            <h3 id="popupTitle" class="text-xl font-bold mb-2"></h3>
+            <p id="popupMessage" class="mb-6 text-gray-300"></p>
+            <button id="popupClose" class="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg w-full">OK</button>
+        </div>
+    </div>
+
+    <!-- Modal for Forgot Password -->
+    <div id="forgotPasswordModal" class="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex justify-center items-center hidden z-50 p-4">
+        <div class="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-sm border border-gray-700 text-white">
+            <h3 class="text-xl font-bold mb-4 text-center">Reset Password</h3>
+            <p class="text-center text-gray-300 mb-4 text-sm">Enter your registered email address to receive a password reset link.</p>
+            <form id="forgotPasswordForm">
+                <div class="relative mb-4">
+                    <i class="bi bi-envelope input-icon"></i>
+                    <input id="resetEmail" type="email" required placeholder="Enter your email" class="w-full px-4 py-2 pl-10 border rounded-md bg-gray-100 text-black focus:outline-none focus:ring-2 focus:ring-cyan-400">
+                </div>
+                <div class="flex gap-4">
+                    <button type="button" id="cancelReset" class="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Cancel</button>
+                    <button type="submit" class="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg">Send Link</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCx80ZdLLV06ugSQZjIksldAdeBxQsOuMA",
+            authDomain: "authodrive.firebaseapp.com",
+            projectId: "authodrive",
+            storageBucket: "authodrive.appspot.com",
+            messagingSenderId: "957416208887",
+            appId: "1:957416208887:web:e436118e5c531458b2d6f2",
+            measurementId: "G-HLQ6J3WG45"
+        };
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        // --- UI Elements ---
+        const popupModal = document.getElementById('popupModal');
+        const popupClose = document.getElementById('popupClose');
+        const forgotPasswordModal = document.getElementById('forgotPasswordModal');
+        const forgotPasswordLink = document.getElementById('forgotPasswordLink');
+        const cancelReset = document.getElementById('cancelReset');
+
+        // --- Helper function for feedback popup ---
+        function showPopup(isSuccess, title, message) {
+            document.getElementById('popupTitle').textContent = title;
+            document.getElementById('popupMessage').textContent = message;
+            document.getElementById('popupIcon').innerHTML = isSuccess
+                ? `<i class="bi bi-check-circle-fill text-green-400"></i>`
+                : `<i class="bi bi-x-circle-fill text-red-400"></i>`;
+            popupModal.classList.remove('hidden');
+        }
+        popupClose.addEventListener('click', () => popupModal.classList.add('hidden'));
+
+        // --- Password Visibility Toggle ---
+        const togglePassword = document.getElementById('togglePassword');
+        togglePassword.addEventListener('click', function() {
+            const passwordInput = document.getElementById('password');
+            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordInput.setAttribute('type', type);
+            this.classList.toggle('bi-eye');
+            this.classList.toggle('bi-eye-slash');
+        });
+
+        // --- Handle Login ---
+        document.getElementById("loginForm").addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitButton = e.target.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+
+            const email = document.getElementById("email").value;
+            const password = document.getElementById("password").value;
+
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                // On successful login, show a temporary success message and then redirect.
+                document.getElementById('popupTitle').textContent = "Login Successful!";
+                document.getElementById('popupMessage').textContent = "Redirecting to your dashboard...";
+                document.getElementById('popupIcon').innerHTML = `<i class="bi bi-check-circle-fill text-green-400"></i>`;
+                popupClose.style.display = 'none'; // Hide button during auto-redirect
+                popupModal.classList.remove('hidden');
+                
+                setTimeout(() => {
+                    window.location.href = "dashboard.html"; // Redirect to dashboard
+                }, 1500);
+
+            } catch (error) {
+                let message = "Invalid email or password. Please try again.";
+                if (error.code !== 'auth/user-not-found' && error.code !== 'auth/wrong-password') {
+                   message = "An error occurred. Please try again later.";
+                }
+                showPopup(false, "Login Failed", message);
+                popupClose.style.display = 'block';
+                submitButton.disabled = false;
+            }
+        });
+        
+        // --- Handle Forgot Password ---
+        forgotPasswordLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            forgotPasswordModal.classList.remove('hidden');
+        });
+
+        cancelReset.addEventListener('click', () => {
+            forgotPasswordModal.classList.add('hidden');
+        });
+
+        document.getElementById('forgotPasswordForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('resetEmail').value;
+            try {
+                await sendPasswordResetEmail(auth, email);
+                forgotPasswordModal.classList.add('hidden');
+                showPopup(true, 'Email Sent!', 'A password reset link has been sent to your email address. Please check your inbox.');
+            } catch (error) {
+                forgotPasswordModal.classList.add('hidden');
+                let message = "Could not send reset email. Please ensure the address is correct.";
+                if (error.code === 'auth/user-not-found') {
+                    message = "No account found with that email address.";
+                }
+                showPopup(false, 'Request Failed', message);
+            }
+        });
+
+    </script>
+</body>
+</html>

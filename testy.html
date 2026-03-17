@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Face Recognition System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #111827; }
+    .glass-box {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    #videoContainer { position: relative; }
+    #overlayCanvas { position: absolute; top: 0; left: 0; }
+  </style>
+</head>
+<body class="text-white flex flex-col items-center justify-center min-h-screen p-4">
+
+  <div class="glass-box rounded-xl shadow-lg p-8 max-w-4xl w-full space-y-8">
+
+    <div>
+      <h1 class="text-3xl font-bold mb-4 text-center">Face Registration</h1>
+      <div class="flex flex-col md:flex-row items-center justify-center gap-4">
+        <input type="text" id="nameInput" placeholder="Enter Your Name" class="bg-gray-700 text-white px-4 py-2 rounded-lg w-full md:w-auto">
+        <button id="openRegisterPopup" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 w-full md:w-auto">
+          Capture & Register
+        </button>
+      </div>
+    </div>
+
+    <hr class="border-gray-600">
+
+    <div>
+      <h1 class="text-3xl font-bold mb-4 text-center">Live Recognition</h1>
+      <div id="videoContainer" class="w-full max-w-lg mx-auto mb-4 bg-black rounded-lg overflow-hidden">
+        <video id="liveVideo" autoplay playsinline class="w-full"></video>
+        <canvas id="overlayCanvas"></canvas>
+      </div>
+      <div class="text-center">
+        <button id="startRecognition" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700">
+          Start Recognition
+        </button>
+        <button id="stopRecognition" class="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 hidden">
+          Stop Recognition
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="cameraPopup" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center hidden z-30">
+    <div class="glass-box rounded-xl shadow-lg p-6 w-full max-w-md text-center text-white">
+      <h2 class="text-xl font-bold mb-4">Capture Your Face</h2>
+      <video id="popupVideo" autoplay class="w-full rounded-lg border mb-4"></video>
+      <canvas id="popupCanvas" class="hidden"></canvas>
+      <div class="flex justify-center gap-4">
+        <button id="captureBtn" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">Capture</button>
+        <button id="cancelBtn" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">Cancel</button>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    const API_URL = "http://127.0.0.1:5000"; // IMPORTANT: Change this to your public IP when deployed
+
+    // --- Common Elements ---
+    let stream;
+    
+    // --- Registration Elements & Logic ---
+    const openRegisterPopup = document.getElementById("openRegisterPopup");
+    const cameraPopup = document.getElementById("cameraPopup");
+    const popupVideo = document.getElementById("popupVideo");
+    const popupCanvas = document.getElementById("popupCanvas");
+    const captureBtn = document.getElementById("captureBtn");
+    const cancelBtn = document.getElementById("cancelBtn");
+    const nameInput = document.getElementById("nameInput");
+
+    openRegisterPopup.addEventListener("click", async () => {
+      if (!nameInput.value.trim()) {
+        alert("Please enter a name first.");
+        return;
+      }
+      cameraPopup.classList.remove("hidden");
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        popupVideo.srcObject = stream;
+      } catch (err) {
+        alert("Camera access denied: " + err);
+      }
+    });
+
+    const closePopup = () => {
+      cameraPopup.classList.add("hidden");
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+
+    cancelBtn.addEventListener("click", closePopup);
+
+    captureBtn.addEventListener("click", () => {
+      const ctx = popupCanvas.getContext("2d");
+      popupCanvas.width = popupVideo.videoWidth;
+      popupCanvas.height = popupVideo.videoHeight;
+      ctx.drawImage(popupVideo, 0, 0, popupCanvas.width, popupCanvas.height);
+      const imageData = popupCanvas.toDataURL("image/png");
+
+      fetch(`${API_URL}/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: nameInput.value, image: imageData })
+      })
+      .then(res => res.json())
+      .then(data => {
+        alert(data.message);
+        if (data.status === 'success') {
+          nameInput.value = ''; // Clear input on success
+        }
+      })
+      .catch(err => alert("Error: " + err));
+      
+      closePopup();
+    });
+
+    // --- Recognition Elements & Logic ---
+    const startRecognitionBtn = document.getElementById("startRecognition");
+    const stopRecognitionBtn = document.getElementById("stopRecognition");
+    const liveVideo = document.getElementById("liveVideo");
+    const overlayCanvas = document.getElementById("overlayCanvas");
+    const overlayCtx = overlayCanvas.getContext("2d");
+    let recognitionInterval;
+
+    startRecognitionBtn.addEventListener("click", async () => {
+        startRecognitionBtn.classList.add('hidden');
+        stopRecognitionBtn.classList.remove('hidden');
+
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            liveVideo.srcObject = stream;
+            liveVideo.onloadedmetadata = () => {
+                overlayCanvas.width = liveVideo.videoWidth;
+                overlayCanvas.height = liveVideo.videoHeight;
+                recognitionInterval = setInterval(recognizeFrame, 200); // Send frame every 200ms
+            };
+        } catch (err) {
+            alert("Camera access denied: " + err);
+            stopRecognition();
+        }
+    });
+
+    const stopRecognition = () => {
+        stopRecognitionBtn.classList.add('hidden');
+        startRecognitionBtn.classList.remove('hidden');
+        clearInterval(recognitionInterval);
+        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            liveVideo.srcObject = null;
+        }
+    };
+
+    stopRecognitionBtn.addEventListener("click", stopRecognition);
+    
+    async function recognizeFrame() {
+        if (liveVideo.paused || liveVideo.ended) {
+            return;
+        }
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = liveVideo.videoWidth;
+        tempCanvas.height = liveVideo.videoHeight;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(liveVideo, 0, 0, tempCanvas.width, tempCanvas.height);
+        const imageData = tempCanvas.toDataURL("image/jpeg");
+
+        try {
+            const response = await fetch(`${API_URL}/recognize`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ image: imageData })
+            });
+            const data = await response.json();
+            drawBoxes(data.results);
+        } catch (err) {
+            console.error("Recognition error:", err);
+        }
+    }
+
+    function drawBoxes(results) {
+        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        if (!results) return;
+
+        results.forEach(person => {
+            const [x1, y1, x2, y2] = person.box;
+            overlayCtx.strokeStyle = person.name === "Unknown" ? "red" : "lime";
+            overlayCtx.lineWidth = 2;
+            overlayCtx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+
+            // Draw text
+            overlayCtx.fillStyle = person.name === "Unknown" ? "red" : "lime";
+            overlayCtx.font = "16px sans-serif";
+            const text = `${person.name} (${person.score.toFixed(2)})`;
+            overlayCtx.fillText(text, x1, y1 > 10 ? y1 - 5 : y1 + 10);
+        });
+    }
+
+  </script>
+</body>
+</html>

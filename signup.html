@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Admin Registration - Autho Drive</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+            background: url("https://escalent.co/wp-content/uploads/2019/02/Rise-of-the-Smart-Car-The-Shape-Shifting-Motoring-Future-is-Already-Here-770x406.jpg") no-repeat center center fixed;
+            background-size: cover;
+        }
+        .form-box {
+            background: rgba(0, 0, 0, 0.75);
+            border-radius: 1rem;
+            position: relative;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+        }
+        .input-icon {
+            color: #6b7280; font-weight: 600; font-size: 1.1rem;
+            position: absolute; left: 0.75rem; top: 50%;
+            transform: translateY(-50%);
+        }
+        .password-toggle {
+            cursor: pointer; position: absolute; right: 12px; top: 50%;
+            transform: translateY(-50%); color: #6b7280; font-weight: 600; font-size: 1.1rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="form-box p-8 w-full max-w-sm text-white relative z-10">
+        <h1 class="text-3xl font-extrabold text-center mb-4">Autho Drive</h1>
+        <h2 class="text-2xl font-bold text-center mb-6 text-cyan-300">Admin Registration</h2>
+        
+        <form id="registerForm" class="space-y-4">
+            <div class="relative"><i class="bi bi-person input-icon"></i><input id="name" type="text" required placeholder="Enter your name" class="w-full px-4 py-2 pl-10 border rounded-md bg-gray-100 text-black focus:outline-none focus:ring-2 focus:ring-cyan-400"/></div>
+            <div class="relative"><i class="bi bi-envelope input-icon"></i><input id="email" type="email" required placeholder="Email" class="w-full px-4 py-2 pl-10 border rounded-md bg-gray-100 text-black focus:outline-none focus:ring-2 focus:ring-cyan-400"/></div>
+            <div class="relative"><i class="bi bi-phone input-icon"></i><input id="mobile" type="tel" required pattern="[0-9]{10}" placeholder="10-digit Mobile" class="w-full px-4 py-2 pl-10 border rounded-md bg-gray-100 text-black focus:outline-none focus:ring-2 focus:ring-cyan-400"/></div>
+            <div class="relative"><i class="bi bi-lock input-icon"></i><input id="password" type="password" required placeholder="Password" class="w-full px-4 py-2 pl-10 pr-10 border rounded-md bg-gray-100 text-black focus:outline-none focus:ring-2 focus:ring-cyan-400"/><i id="togglePassword" class="bi bi-eye-slash password-toggle"></i></div>
+            <div><div class="relative"><i class="bi bi-lock input-icon"></i><input id="confirmPassword" type="password" required placeholder="Confirm Password" class="w-full px-4 py-2 pl-10 pr-10 border rounded-md bg-gray-100 text-black focus:outline-none focus:ring-2 focus:ring-cyan-400"/><i id="toggleConfirmPassword" class="bi bi-eye-slash password-toggle"></i></div><p id="errorMsg" class="text-red-400 text-sm mt-1 hidden">Passwords do not match.</p></div>
+            <button type="submit" id="submitButton" class="w-full bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 hover:from-cyan-600 hover:via-blue-600 hover:to-indigo-700 shadow-lg text-white font-semibold py-2 rounded-xl transition duration-300 transform hover:scale-105 disabled:opacity-75 disabled:cursor-not-allowed">Register</button>
+            <p class="text-center pt-2 text-sm text-gray-300">Already have an account? <a href="login.html" class="text-pink-400 hover:underline">Log In</a></p>
+        </form>
+    </div>
+
+    <div id="popupModal" class="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex justify-center items-center hidden z-50 p-4">
+        <div class="bg-gray-800 p-6 rounded-lg shadow-xl text-center text-white w-full max-w-xs border border-gray-700">
+            <div id="popupIcon" class="text-5xl mb-4"></div>
+            <h3 id="popupTitle" class="text-xl font-bold mb-2"></h3>
+            <p id="popupMessage" class="mb-6 text-gray-300"></p>
+            <button id="popupClose" class="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg w-full">OK</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+        import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+        
+        const firebaseConfig = {
+            apiKey: "AIzaSyCx80ZdLLV06ugSQZjIksldAdeBxQsOuMA",
+            authDomain: "authodrive.firebaseapp.com",
+            projectId: "authodrive",
+            storageBucket: "authodrive.appspot.com",
+            messagingSenderId: "957416208887",
+            appId: "1:957416208887:web:e436118e5c531458b2d6f2",
+            measurementId: "G-HLQ6J3WG45"
+        };
+        
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // --- Popup Logic ---
+        const popupModal = document.getElementById('popupModal');
+        const popupCloseButton = document.getElementById('popupClose');
+
+        function showPopup(isSuccess, title, message, autoRedirect = false) {
+            document.getElementById('popupTitle').textContent = title;
+            document.getElementById('popupMessage').textContent = message;
+            document.getElementById('popupIcon').innerHTML = isSuccess
+                ? `<i class="bi bi-check-circle-fill text-green-400"></i>`
+                : `<i class="bi bi-x-circle-fill text-red-400"></i>`;
+
+            popupCloseButton.style.display = autoRedirect ? "none" : "block"; 
+            popupModal.classList.remove('hidden');
+
+            if (autoRedirect) {
+                setTimeout(() => {
+                    window.location.href = "login.html";
+                }, 2000); // 2 sec delay so popup is visible
+            }
+        }
+
+        popupCloseButton.addEventListener('click', () => {
+            popupModal.classList.add('hidden');
+        });
+
+        // --- Password Visibility Toggle ---
+        function setupPasswordToggle(toggleId, passwordId) {
+            const toggle = document.getElementById(toggleId);
+            const password = document.getElementById(passwordId);
+            if (toggle && password) {
+                toggle.addEventListener('click', function() {
+                    const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
+                    password.setAttribute('type', type);
+                    this.classList.toggle('bi-eye');
+                    this.classList.toggle('bi-eye-slash');
+                });
+            }
+        }
+        setupPasswordToggle('togglePassword', 'password');
+        setupPasswordToggle('toggleConfirmPassword', 'confirmPassword');
+        
+        // --- Handle Registration Form Submission ---
+        document.getElementById("registerForm").addEventListener("submit", (e) => {
+            e.preventDefault();
+            const submitButton = document.getElementById('submitButton');
+            const originalButtonText = submitButton.textContent;
+            
+            submitButton.disabled = true;
+            submitButton.innerHTML = `<span class="animate-pulse">Registering...</span>`;
+
+            const name = document.getElementById("name").value;
+            const email = document.getElementById("email").value;
+            const mobile = document.getElementById("mobile").value;
+            const password = document.getElementById("password").value;
+            const confirmPassword = document.getElementById("confirmPassword").value;
+            
+            document.getElementById("errorMsg").classList.add("hidden");
+
+            if (password !== confirmPassword) {
+                document.getElementById("errorMsg").classList.remove("hidden");
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+                return;
+            }
+            
+            createUserWithEmailAndPassword(auth, email, password)
+                .then(userCredential => {
+                    return setDoc(doc(db, "admins", userCredential.user.uid), {
+                        name, email, mobile, createdAt: new Date().toISOString()
+                    });
+                })
+                .then(() => {
+                    // Restore button state before showing the success popup
+                    submitButton.disabled = false;
+                    submitButton.textContent = originalButtonText;
+
+                    // ✅ SUCCESS POPUP
+                    showPopup(true, "Registration Successful!", "Redirecting to login page...", true);
+                })
+                .catch(error => {
+                    // ❌ FAILURE POPUP
+                    let friendlyMessage = "An unexpected error occurred. Please try again.";
+                    if (error.code === "auth/email-already-in-use") {
+                        friendlyMessage = "This email is already registered. Please log in instead.";
+                    } else if (error.code === 'auth/weak-password') {
+                        friendlyMessage = 'Password should be at least 6 characters long.';
+                    }
+                    showPopup(false, 'Registration Failed', friendlyMessage);
+                    
+                    // Restore button state on failure
+                    submitButton.disabled = false;
+                    submitButton.textContent = originalButtonText;
+                });
+        });
+    </script>
+</body>
+</html>
