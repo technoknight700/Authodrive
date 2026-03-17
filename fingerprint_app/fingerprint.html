@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fingerprint App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            color: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            /* Neon fingerprint background with dark overlay */
+            background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('https://img.freepik.com/free-vector/neon-fingerprint-wallpaper_23-2148385076.jpg?semt=ais_incoming&w=740&q=80') no-repeat center center fixed;
+            background-size: cover;
+        }
+        .container {
+            background-color: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 2.5rem;
+            border-radius: 1rem;
+            max-width: 480px;
+            width: 90%;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        .description {
+            color: #dbe7ef;
+            margin-bottom: 2rem;
+        }
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        button {
+            flex: 1;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border: none;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        #registerBtn {
+            background-color: #9ca3ff;
+            color: #001;
+        }
+        #verifyBtn {
+            background-color: #48b3ff;
+            color: #002032;
+        }
+        .log-box {
+            background-color: rgba(0, 0, 0, 0.2);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            text-align: left;
+            min-height: 80px;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .status-message {
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+        .success {
+            color: #2ecc71;
+        }
+        .error {
+            color: #e74c3c;
+        }
+        .info {
+            color: #3498db;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Fingerprint — Register & Verify</h1>
+        <p class="description">Use the R307 sensor: Register to enroll a finger, then Verify to identify.</p>
+
+        <div class="button-group">
+            <button id="registerBtn">Register Fingerprint</button>
+            <button id="verifyBtn">Verify Fingerprint</button>
+        </div>
+
+        <div id="log-box" class="log-box">
+            <div id="status-log">Logs will appear here...</div>
+        </div>
+    </div>
+
+    <script>
+        // Note: Replace with your Raspberry Pi's IP address and the correct port
+        const API_URL = 'http://192.168.29.89:5001/api/fingerprint';
+        const logBox = document.getElementById('status-log');
+
+        let enrollmentId = 1; // A hardcoded ID for enrollment. This could be dynamic.
+
+        function addLog(message, type) {
+            const logEntry = document.createElement('div');
+            logEntry.className = `status-message ${type}`;
+            logEntry.textContent = message;
+            logBox.prepend(logEntry);
+        }
+
+        async function handleAction(action) {
+            let url = `${API_URL}/${action}`;
+            
+            if (action === 'enroll') {
+                url += `/${enrollmentId}`;
+                addLog('Please place your finger on the sensor to register...', 'info');
+            } else if (action === 'verify') {
+                addLog('Please place your finger on the sensor to verify...', 'info');
+            }
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success) {
+                    addLog(data.message, 'success');
+                } else {
+                    addLog(data.error, 'error');
+                }
+            } catch (error) {
+                addLog(`Network error: ${error.message}. Is your backend server running?`, 'error');
+            }
+        }
+
+        document.getElementById('registerBtn').addEventListener('click', () => handleAction('enroll'));
+        document.getElementById('verifyBtn').addEventListener('click', () => handleAction('verify'));
+    </script>
+</body>
+</html>
